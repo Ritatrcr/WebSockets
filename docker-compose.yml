@@ -1,0 +1,52 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16
+    container_name: chat_postgres
+    environment:
+      POSTGRES_USER: chat_user
+      POSTGRES_PASSWORD: chat_pass
+      POSTGRES_DB: chat_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - chat_net
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: chat_rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672" # UI de administración
+    networks:
+      - chat_net
+
+  backend:
+    build: ./backend
+    container_name: chat_backend
+    command: npm run start
+    environment:
+      PORT: 8080
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: chat_user
+      DB_PASSWORD: chat_pass
+      DB_NAME: chat_db
+      RABBIT_URL: amqp://rabbitmq
+      JWT_SECRET: super-secret-dev
+    depends_on:
+      - db
+      - rabbitmq
+    ports:
+      - "8080:8080"
+    networks:
+      - chat_net
+
+networks:
+  chat_net:
+
+volumes:
+  db_data:
