@@ -45,7 +45,7 @@ export async function findRoomById(roomId) {
 export async function isUserMemberOfRoom(roomId, userId) {
   const result = await pool.query(
     `
-    SELECT id, role
+    SELECT id, role, last_read_at
     FROM room_members
     WHERE room_id = $1 AND user_id = $2
     `,
@@ -62,7 +62,7 @@ export async function addMemberToRoom(roomId, userId, role = 'member') {
     INSERT INTO room_members (room_id, user_id, role)
     VALUES ($1, $2, $3)
     ON CONFLICT (room_id, user_id) DO NOTHING
-    RETURNING id, room_id, user_id, role, created_at
+    RETURNING id, room_id, user_id, role, created_at, last_read_at
     `,
     [roomId, userId, role]
   );
@@ -83,7 +83,19 @@ export async function removeMemberFromRoom(roomId, userId) {
   return result.rowCount > 0;
 }
 
-// Listar salas visibles para el usuario
+// 🔹 Actualizar last_read_at (para marcar todo como leído hasta ahora)
+export async function updateRoomLastReadAt(roomId, userId, date = new Date()) {
+  await pool.query(
+    `
+    UPDATE room_members
+    SET last_read_at = $3
+    WHERE room_id = $1 AND user_id = $2
+    `,
+    [roomId, userId, date]
+  );
+}
+
+// Listar salas visibles para el usuario (todas: públicas y privadas)
 export async function getVisibleRoomsForUser(userId) {
   const result = await pool.query(
     `
@@ -94,13 +106,27 @@ export async function getVisibleRoomsForUser(userId) {
       r.owner_id,
       r.created_at,
       CASE WHEN rm.user_id IS NOT NULL THEN true ELSE false END AS is_member,
-      CASE WHEN r.owner_id = $1 THEN true ELSE false END AS is_owner
+      CASE WHEN r.owner_id = $1 THEN true ELSE false END AS is_owner,
+
+      -- 👇 mensajes no leídos SOLO si es miembro
+      COALESCE(
+        CASE
+          WHEN rm.user_id IS NULL THEN 0
+          ELSE (
+            SELECT COUNT(*)
+            FROM messages m
+            WHERE m.room_id = r.id
+              AND (
+                rm.last_read_at IS NULL
+                OR m.created_at > rm.last_read_at
+              )
+          )
+        END,
+      0) AS unread_count
+
     FROM rooms r
     LEFT JOIN room_members rm
       ON rm.room_id = r.id AND rm.user_id = $1
-    WHERE
-      r.is_private = FALSE
-      OR rm.user_id IS NOT NULL
     ORDER BY r.id ASC
     `,
     [userId]
