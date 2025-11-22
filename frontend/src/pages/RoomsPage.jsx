@@ -270,28 +270,30 @@ export function RoomsPage({ onEnterRoom }) {
                           </div>
 
                           <div className="flex items-center gap-2">
-                            <button
-                              className="p-2 rounded-full hover:bg-slate-800 flex items-center justify-center"
-                              onClick={() => handleJoinAndEnter(room)}
-                              aria-label="Entrar al chat"
-                              title="Entrar al chat"
-                            >
-                              <MessageCircle className="w-4 h-4 text-slate-100" />
-                            </button>
-                            <button
-                              type="button"
-                              className="p-2 rounded-full hover:bg-slate-800 flex items-center justify-center"
-                              onClick={() =>
-                                setInviteRoomId(
-                                  inviteRoomId === room.id ? null : room.id
-                                )
-                              }
-                              aria-label="Invitar usuarios"
-                              title="Invitar usuarios"
-                            >
-                              <UserPlus className="w-4 h-4 text-sky-400" />
-                            </button>
-                          </div>
+  <button
+    className="p-2 rounded-full hover:bg-slate-800 flex items-center justify-center"
+    onClick={() => handleJoinAndEnter(room)}
+    aria-label="Entrar al chat"
+    title="Entrar al chat"
+  >
+    <MessageCircle className="w-4 h-4 text-slate-100" />
+  </button>
+
+  {room.isPrivate && (
+    <button
+      type="button"
+      className="p-2 rounded-full hover:bg-slate-800 flex items-center justify-center"
+      onClick={() =>
+        setInviteRoomId(inviteRoomId === room.id ? null : room.id)
+      }
+      aria-label="Invitar usuarios"
+      title="Invitar usuarios"
+    >
+      <UserPlus className="w-4 h-4 text-sky-400" />
+    </button>
+  )}
+</div>
+
                         </div>
 
                         {inviteRoomId === room.id && (
