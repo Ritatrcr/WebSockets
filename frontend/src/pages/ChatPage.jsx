@@ -126,53 +126,77 @@ export function ChatPage({ room, onBack }) {
 
     // estado online/offline
     s.on('user_status', ({ userId, status }) => {
-      setOnlineUsers((prev) => ({
-        ...prev,
-        [userId]: status,
-      }));
-    });
+  setOnlineUsers((prev) => ({
+    ...prev,
+    [userId]: status,
+  }));
+});
+
+// Al conectar, marca a TI mismo como online en el estado local
+s.on('connect', () => {
+  console.log('WS conectado, uniendo a sala', room.id);
+  s.emit('join_room', { roomId: room.id });
+
+  setOnlineUsers((prev) => ({
+    ...prev,
+    [user.id]: 'online',
+  }));
+});
 
     s.on('user_joined', ({ roomId, userId, username }) => {
-      if (roomId !== room.id || userId === user.id) return;
+  if (roomId !== room.id || userId === user.id) return;
 
-      const systemMessage = {
-        id: `join-${roomId}-${userId}-${Date.now()}`,
-        roomId,
-        userId: null,
-        username: 'Sistema',
-        content: `${username || `Usuario ${userId}`} se unió a la sala`,
-        createdAt: new Date().toISOString(),
-        isSystem: true,
-        systemType: 'join',
-      };
+  // ✅ Marca usuario como online
+  setOnlineUsers((prev) => ({
+    ...prev,
+    [userId]: 'online',
+  }));
 
-      setMessages((prev) => [...prev, systemMessage]);
+  const systemMessage = {
+    id: `join-${roomId}-${userId}-${Date.now()}`,
+    roomId,
+    userId: null,
+    username: 'Sistema',
+    content: `${username || `Usuario ${userId}`} se unió a la sala`,
+    createdAt: new Date().toISOString(),
+    isSystem: true,
+    systemType: 'join',
+  };
 
-      if (joinSoundRef.current) {
-        joinSoundRef.current.play().catch(() => {});
-      }
-    });
+  setMessages((prev) => [...prev, systemMessage]);
 
-    s.on('user_left', ({ roomId, userId, username }) => {
-      if (roomId !== room.id || userId === user.id) return;
+  if (joinSoundRef.current) {
+    joinSoundRef.current.play().catch(() => {});
+  }
+});
 
-      const systemMessage = {
-        id: `left-${roomId}-${userId}-${Date.now()}`,
-        roomId,
-        userId: null,
-        username: 'Sistema',
-        content: `${username || `Usuario ${userId}`} salió de la sala`,
-        createdAt: new Date().toISOString(),
-        isSystem: true,
-        systemType: 'leave',
-      };
+s.on('user_left', ({ roomId, userId, username }) => {
+  if (roomId !== room.id || userId === user.id) return;
 
-      setMessages((prev) => [...prev, systemMessage]);
+  // ✅ Marca usuario como offline
+  setOnlineUsers((prev) => ({
+    ...prev,
+    [userId]: 'offline',
+  }));
 
-      if (leaveSoundRef.current) {
-        leaveSoundRef.current.play().catch(() => {});
-      }
-    });
+  const systemMessage = {
+    id: `left-${roomId}-${userId}-${Date.now()}`,
+    roomId,
+    userId: null,
+    username: 'Sistema',
+    content: `${username || `Usuario ${userId}`} salió de la sala`,
+    createdAt: new Date().toISOString(),
+    isSystem: true,
+    systemType: 'leave',
+  };
+
+  setMessages((prev) => [...prev, systemMessage]);
+
+  if (leaveSoundRef.current) {
+    leaveSoundRef.current.play().catch(() => {});
+  }
+});
+
 
     s.on('ws_error', (err) => {
       console.error('WS error:', err);

@@ -25,6 +25,7 @@ export function RoomsPage({ onEnterRoom }) {
   const [isPrivate, setIsPrivate] = useState(false);
   const [password, setPassword] = useState('');
   const [creating, setCreating] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
 
   // Filtro de salas (all | public | private)
   const [filter, setFilter] = useState('all');
@@ -67,6 +68,7 @@ export function RoomsPage({ onEnterRoom }) {
       setPassword('');
       setIsPrivate(false);
       await loadRooms();
+      setShowCreate(false); // cerrar modal al crear
     } catch (err) {
       console.error(err);
       setError('Error al crear la sala');
@@ -130,26 +132,24 @@ export function RoomsPage({ onEnterRoom }) {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-50 flex flex-col">
       {/* Header */}
-      <header className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+      <header className="flex items-center justify-between px-6 py-4 border-b border-slate-900/80 bg-slate-950">
         <div className="flex flex-col">
           <h1 className="text-lg font-semibold flex items-center gap-2">
-            <MessageCircle className="w-5 h-5 text-sky-400" />
-            Salas de chat
+            <MessageCircle className="w-7 h-7 text-sky-400" />
+            Hola, {user?.username}!
           </h1>
+          
         </div>
         <div className="flex items-center gap-3 text-sm">
           <div className="flex items-center gap-2">
             <span className="inline-flex h-2.5 w-2.5 rounded-full bg-sky-400 shadow-[0_0_8px_rgba(56,189,248,0.8)]" />
             <span className="text-slate-400 hidden sm:inline">
-              Conectado como{' '}
-              <span className="text-slate-100 font-medium">
-                {user?.username}
-              </span>
+              Conectado 
             </span>
           </div>
           <button
             onClick={logout}
-            className="p-2 rounded-full border border-slate-700 hover:bg-slate-800 transition flex items-center justify-center"
+            className="p-2 rounded-full border border-slate-700 hover:bg-slate-900 transition flex items-center justify-center"
             aria-label="Cerrar sesión"
             title="Cerrar sesión"
           >
@@ -159,101 +159,50 @@ export function RoomsPage({ onEnterRoom }) {
       </header>
 
       {/* Contenido */}
-      <main className="flex-1 flex flex-col md:flex-row gap-4 p-4 md:p-6">
-        {/* Columna izquierda: Crear sala (minimal) */}
-        <section className="w-full md:w-1/4 lg:w-1/5 bg-slate-900/80 border border-slate-800 rounded-2xl p-4 flex flex-col gap-3">
-          <h2 className="text-sm font-semibold flex items-center gap-2 text-slate-100">
-            <PlusCircle className="w-4 h-4 text-sky-400" />
-            Nueva sala
-          </h2>
-
-          <form className="space-y-3 text-xs" onSubmit={handleCreateRoom}>
-            <div className="space-y-1">
-              <label className="block text-slate-300">Nombre</label>
-              <input
-                type="text"
-                className="w-full rounded-md border border-slate-700 bg-slate-950/80 px-2 py-1.5 text-slate-50 text-xs outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
-                placeholder="p.ej. backend-equipo"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
+      <main className="flex-1 flex flex-col gap-4 p-4 md:p-6">
+        <section className="flex-1 bg-slate-900/80 border border-slate-800/80 rounded-2xl p-4 flex flex-col gap-4">
+          {/* Barra superior con título secundario + filtro + acciones */}
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-1">
+            <div className="flex flex-col gap-1">
+              <h2 className="text-sm font-semibold flex items-center gap-2 text-slate-100">
+                
+                Salas disponibles
+              </h2>
+              
             </div>
 
-            <div className="flex items-center justify-between gap-2">
-              <label
-                htmlFor="privateRoom"
-                className="flex items-center gap-2 text-[11px] text-slate-300 cursor-pointer"
-              >
-                <input
-                  id="privateRoom"
-                  type="checkbox"
-                  className="h-3.5 w-3.5 rounded border-slate-600"
-                  checked={isPrivate}
-                  onChange={(e) => setIsPrivate(e.target.checked)}
-                />
-                <span className="flex items-center gap-1">
-                  <Lock className="w-3 h-3 text-slate-400" />
-                  Sala privada
-                </span>
-              </label>
-            </div>
-
-            {isPrivate && (
-              <div className="space-y-1">
-                <label className="block text-slate-300">Password</label>
-                <input
-                  type="password"
-                  className="w-full rounded-md border border-slate-700 bg-slate-950/80 px-2 py-1.5 text-slate-50 text-xs outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={creating}
-              className="w-full rounded-md bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold py-1.5 text-xs transition disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-1"
-            >
-              <PlusCircle className="w-3.5 h-3.5" />
-              {creating ? 'Creando...' : 'Crear sala'}
-            </button>
-
-            {error && (
-              <p className="text-[11px] text-red-400 bg-red-900/20 border border-red-700/50 rounded-md px-2 py-1.5">
-                {error}
-              </p>
-            )}
-          </form>
-        </section>
-
-        {/* Columna derecha: Mis chats + Unirse */}
-        <section className="flex-1 bg-slate-900/70 border border-slate-800 rounded-2xl p-4 flex flex-col gap-4">
-          {/* Barra superior con filtro + recargar */}
-          <div className="flex items-center justify-between mb-1">
-            <h2 className="text-sm font-semibold flex items-center gap-2">
-              Salas
-            </h2>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <div className="relative text-xs">
                 <Filter className="w-3.5 h-3.5 text-slate-400 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <select
                   value={filter}
                   onChange={(e) => setFilter(e.target.value)}
-                  className="appearance-none pl-6 pr-6 py-1.5 rounded-full bg-slate-950/70 border border-slate-700 text-slate-200 text-[11px] focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                  className="appearance-none pl-6 pr-3 py-1.5 rounded-full bg-slate-950/80 border border-slate-700 text-slate-200 text-[11px] focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
                 >
-                  <option value="all">Todos los tipos</option>
-                  <option value="public">Solo públicas</option>
-                  <option value="private">Solo privadas</option>
+                  <option value="all">Todas</option>
+                  <option value="public">Públicas</option>
+                  <option value="private">Privadas</option>
                 </select>
-                <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[9px] text-slate-400">
-                  ▾
-                </span>
+                
               </div>
 
+             
+
               <button
+                type="button"
+                onClick={() => {
+                  setError('');
+                  setShowCreate(true);
+                }}
+                className="inline-flex items-center gap-1.5 rounded-full border border-slate-600 bg-slate-950/80 hover:border-sky-500 hover:bg-slate-900 px-3 py-1.5 text-[11px] text-slate-100"
+              >
+                <PlusCircle className="w-3.5 h-3.5 text-sky-400" />
+                Crear sala
+              </button>
+
+               <button
                 onClick={loadRooms}
-                className="p-2 border border-slate-700 rounded-lg hover:bg-slate-800 flex items-center justify-center"
+                className="p-2  rounded-full hover:bg-slate-800 flex items-center justify-center"
                 aria-label="Recargar salas"
                 title="Recargar salas"
               >
@@ -261,17 +210,28 @@ export function RoomsPage({ onEnterRoom }) {
               </button>
             </div>
           </div>
+          
 
+          {/* Contenido de salas */}
           {loadingRooms ? (
             <p className="text-sm text-slate-400">Cargando salas...</p>
           ) : (
             <>
               {/* MIS CHATS */}
-              <div>
-                <h3 className="text-xs font-semibold text-slate-300 mb-2 uppercase tracking-wide flex items-center gap-1">
-                  <UserCircle2 className="w-3.5 h-3.5 text-sky-400" />
-                  Mis chats
-                </h3>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wide flex items-center gap-1">
+                    <UserCircle2 className="w-3.5 h-3.5 text-indigo-400" />
+                    Mis chats
+                  </h3>
+                  {myRooms.length > 0 && (
+                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/40 text-indigo-200">
+                      {myRooms.length} sala
+                      {myRooms.length > 1 && 's'}
+                    </span>
+                  )}
+                </div>
+
                 {myRooms.length === 0 ? (
                   <p className="text-xs text-slate-500">
                     Todavía no eres miembro de ninguna sala.
@@ -281,17 +241,16 @@ export function RoomsPage({ onEnterRoom }) {
                     {myRooms.map((room) => (
                       <li
                         key={room.id}
-                        className="flex items-center justify-between px-3 py-2 rounded-xl border border-sky-600/70 bg-slate-950/70"
+                        className="flex items-center justify-between px-3 py-2 rounded-xl border border-slate-800 bg-slate-950/70 hover:bg-slate-900/80 transition"
                       >
                         <div className="flex items-stretch gap-2 flex-1">
-                          <div className="w-1 rounded-full bg-sky-400/80" />
+                          <div className="w-1 rounded-full bg-indigo-400/80" />
                           <div className="flex flex-col flex-1">
-                            <span className="text-sm font-semibold text-sky-100 flex items-center gap-1.5">
-                              <span className="inline-flex h-1.5 w-1.5 rounded-full bg-sky-400" />
+                            <span className="text-sm font-semibold text-slate-100 flex items-center gap-1.5">
                               {room.name}
                             </span>
 
-                            <div className="flex items-center gap-2 mt-0.5">
+                            <div className="flex flex-wrap items-center gap-2 mt-0.5">
                               <span className="text-[11px] text-slate-300 flex items-center gap-1">
                                 {room.isPrivate ? (
                                   <>
@@ -306,8 +265,7 @@ export function RoomsPage({ onEnterRoom }) {
                                 )}
                               </span>
 
-                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-500/15 border border-sky-500/50 text-sky-200 flex items-center gap-1">
-                                <span className="inline-flex h-1.5 w-1.5 rounded-full bg-sky-400" />
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/15 border border-indigo-500/40 text-indigo-200 flex items-center gap-1">
                                 Miembro
                               </span>
                             </div>
@@ -329,11 +287,20 @@ export function RoomsPage({ onEnterRoom }) {
               </div>
 
               {/* UNIRSE A UN CHAT */}
-              <div>
-                <h3 className="text-xs font-semibold text-slate-300 mb-2 uppercase tracking-wide flex items-center gap-1">
-                  <UserPlus className="w-3.5 h-3.5 text-sky-400" />
-                  Unirse a un chat
-                </h3>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-semibold text-slate-300 mb-0 uppercase tracking-wide flex items-center gap-1">
+                    <UserPlus className="w-3.5 h-3.5 text-sky-400" />
+                    Explorar salas
+                  </h3>
+                  {joinableRooms.length > 0 && (
+                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/40 text-sky-200">
+                      {joinableRooms.length} disponible
+                      {joinableRooms.length > 1 && 's'}
+                    </span>
+                  )}
+                </div>
+
                 {joinableRooms.length === 0 ? (
                   <p className="text-xs text-slate-500">
                     No hay más salas disponibles para unirte con este filtro.
@@ -343,7 +310,7 @@ export function RoomsPage({ onEnterRoom }) {
                     {joinableRooms.map((room) => (
                       <li
                         key={room.id}
-                        className="flex items-center justify-between px-3 py-2 rounded-xl border border-slate-800 bg-slate-950/40"
+                        className="flex items-center justify-between px-3 py-2 rounded-xl border border-slate-800 bg-grey-950/100 hover:bg-slate-900/80 transition"
                       >
                         <div className="flex flex-col">
                           <span className="text-sm font-medium text-slate-100 flex items-center gap-1.5">
@@ -357,7 +324,7 @@ export function RoomsPage({ onEnterRoom }) {
                           <div className="flex items-center gap-2 mt-0.5">
                             <span className="text-[11px] text-slate-400">
                               {room.isPrivate
-                                ? 'Privada · requiere contraseña'
+                                ? 'Privada '
                                 : 'Pública'}
                             </span>
 
@@ -381,16 +348,114 @@ export function RoomsPage({ onEnterRoom }) {
                 )}
               </div>
 
-              {/* Error general de salas (si quieres mostrarlo aquí en vez del form) */}
-              {/* {error && (
-                <p className="text-xs text-red-400 mt-2">
-                  {error}
-                </p>
-              )} */}
+              {/* Error global de salas si no está el modal abierto */}
+              {error && !showCreate && (
+                <p className="text-xs text-red-400 mt-1">{error}</p>
+              )}
             </>
           )}
         </section>
       </main>
+
+      {/* MODAL Crear sala */}
+      {showCreate && (
+        <div
+          className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowCreate(false);
+            }
+          }}
+        >
+          <div className="w-full max-w-md mx-4 rounded-2xl border border-slate-700 bg-slate-900 shadow-xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex h-7 w-7 rounded-full bg-slate-800 items-center justify-center">
+                  <PlusCircle className="w-4 h-4 text-sky-400" />
+                </span>
+                <div className="flex flex-col">
+                  <span className="text-sm font-semibold text-slate-100">
+                    Crear Sala
+                  </span>
+                  
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCreate(false)}
+                className="text-[11px] text-slate-400 hover:text-slate-200"
+              >
+                ✕ 
+              </button>
+            </div>
+
+            <form className="space-y-3 text-xs" onSubmit={handleCreateRoom}>
+              <div className="space-y-1">
+                <label className="block text-slate-300 text-[11px]">
+                  Nombre de la sala
+                </label>
+                <input
+                  type="text"
+                  className="w-full rounded-md border border-slate-700 bg-slate-950/90 px-2 py-1.5 text-slate-50 text-xs outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </div>
+
+              <div className="flex items-center justify-between gap-2">
+                <label
+                  htmlFor="privateRoom"
+                  className="flex items-center gap-2 text-[11px] text-slate-300 cursor-pointer"
+                >
+                  <input
+                    id="privateRoom"
+                    type="checkbox"
+                    className="h-3.5 w-3.5 rounded border-slate-600"
+                    checked={isPrivate}
+                    onChange={(e) => setIsPrivate(e.target.checked)}
+                  />
+                  <span className="flex items-center gap-1">
+                    <Lock className="w-3 h-3 text-slate-400" />
+                    Sala privada
+                  </span>
+                </label>
+                <span className="text-[11px] text-slate-500">
+                  Las públicas no requieren contraseña.
+                </span>
+              </div>
+
+              {isPrivate && (
+                <div className="space-y-1">
+                  <label className="block text-slate-300 text-[11px]">
+                    Password
+                  </label>
+                  <input
+                    type="password"
+                    className="w-full rounded-md border border-slate-700 bg-slate-950/90 px-2 py-1.5 text-slate-50 text-xs outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                </div>
+              )}
+
+              <div className="flex items-center justify-between gap-2 pt-1">
+                <button
+                  type="submit"
+                  disabled={creating}
+                  className="inline-flex items-center justify-center gap-1 rounded-md bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold px-3 py-1.5 text-[11px] transition disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {creating ? 'Creando...' : 'Crear Sala'}
+                </button>
+                {error && (
+                  <span className="text-[11px] text-red-400 truncate">
+                    {error}
+                  </span>
+                )}
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
