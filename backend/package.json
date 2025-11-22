@@ -7,7 +7,9 @@
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
     "test": "jest",
-    "migrate": "node src/scripts/initDb.js"
+    "migrate": "node src/scripts/initDb.js",
+    "create-demo-user": "node src/scripts/createDemoUser.js",
+    "worker": "node src/workers/messageWorker.js"
   },
   "keywords": [],
   "author": "",

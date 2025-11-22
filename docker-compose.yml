@@ -20,7 +20,7 @@ services:
     container_name: chat_rabbitmq
     ports:
       - "5672:5672"
-      - "15672:15672" # UI de administración
+      - "15672:15672"
     networks:
       - chat_net
 
@@ -42,6 +42,24 @@ services:
       - rabbitmq
     ports:
       - "8080:8080"
+    networks:
+      - chat_net
+
+  worker:
+    build: ./backend
+    container_name: chat_worker
+    command: npm run worker
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: chat_user
+      DB_PASSWORD: chat_pass
+      DB_NAME: chat_db
+      RABBIT_URL: amqp://rabbitmq
+      JWT_SECRET: super-secret-dev
+    depends_on:
+      - db
+      - rabbitmq
     networks:
       - chat_net
 

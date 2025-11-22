@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Test Socket.IO</title>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  </head>
+  <body>
+    <h1>Test Chat WS</h1>
+
+    <div>
+      <label>
+        Mensaje:
+        <input id="msgInput" type="text" />
+      </label>
+      <button id="sendBtn">Enviar</button>
+    </div>
+
+    <h2>Log</h2>
+    <pre id="log"></pre>
+
+    <script>
+      const logEl = document.getElementById('log');
+      const msgInput = document.getElementById('msgInput');
+      const sendBtn = document.getElementById('sendBtn');
+
+      function log(...args) {
+        console.log(...args);
+        logEl.textContent += args.map(String).join(' ') + '\n';
+      }
+
+      // 1) Pega aquí tu token JWT de /auth/login
+      const TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsImlhdCI6MTc2Mzc5MTQzMSwiZXhwIjoxNzYzODIwMjMxfQ.SnTvUYaGI7PMjG3QnG5MUXLKoOvZDHbpuuwp8qgm50A';
+
+      // 2) Id de la sala (por ejemplo 1 = general)
+      const ROOM_ID = 1;
+
+      // 3) Conectar al backend
+      const socket = io('http://localhost:8080', {
+        auth: { token: TOKEN },
+      });
+
+      socket.on('connect', () => {
+        log('✅ conectado, id:', socket.id);
+
+        // Unirse a la sala
+        socket.emit('join_room', { roomId: ROOM_ID });
+      });
+
+      // Cuando pulses el botón "Enviar"
+      sendBtn.addEventListener('click', () => {
+        const text = msgInput.value.trim();
+        if (!text) return;
+
+        socket.emit('send_message', {
+          roomId: ROOM_ID,
+          content: text,
+        });
+
+        msgInput.value = '';
+      });
+
+      socket.on('message', (msg) => {
+        log('💬 message:', JSON.stringify(msg));
+      });
+
+      socket.on('user_joined', (ev) => {
+        log('👤 user_joined:', JSON.stringify(ev));
+      });
+
+      socket.on('user_left', (ev) => {
+        log('🚪 user_left:', JSON.stringify(ev));
+      });
+
+      socket.on('typing', (ev) => {
+        log('✍ typing:', JSON.stringify(ev));
+      });
+
+      socket.on('user_status', (ev) => {
+        log('🟢 user_status:', JSON.stringify(ev));
+      });
+
+      socket.on('ws_error', (err) => {
+        log('❌ ws_error:', JSON.stringify(err));
+      });
+
+      socket.on('disconnect', () => {
+        log('❌ desconectado');
+      });
+    </script>
+  </body>
+</html>
