@@ -1,7 +1,7 @@
 // src/pages/RoomsPage.jsx
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { fetchRooms, createRoomApi, joinRoomApi } from '../api/rooms';
+import { fetchRooms, createRoomApi, joinRoomApi, inviteToRoomApi } from '../api/rooms';
 import {
   RefreshCw,
   LogOut,
@@ -26,6 +26,9 @@ export function RoomsPage({ onEnterRoom }) {
   const [password, setPassword] = useState('');
   const [creating, setCreating] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
+
+  // Para mostrar/ocultar formulario de invitación por sala
+  const [inviteRoomId, setInviteRoomId] = useState(null);
 
   // Filtro de salas (all | public | private)
   const [filter, setFilter] = useState('all');
@@ -138,13 +141,12 @@ export function RoomsPage({ onEnterRoom }) {
             <MessageCircle className="w-7 h-7 text-sky-400" />
             Hola, {user?.username}!
           </h1>
-          
         </div>
         <div className="flex items-center gap-3 text-sm">
           <div className="flex items-center gap-2">
             <span className="inline-flex h-2.5 w-2.5 rounded-full bg-sky-400 shadow-[0_0_8px_rgba(56,189,248,0.8)]" />
             <span className="text-slate-400 hidden sm:inline">
-              Conectado 
+              Conectado
             </span>
           </div>
           <button
@@ -165,10 +167,8 @@ export function RoomsPage({ onEnterRoom }) {
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-1">
             <div className="flex flex-col gap-1">
               <h2 className="text-sm font-semibold flex items-center gap-2 text-slate-100">
-                
                 Salas disponibles
               </h2>
-              
             </div>
 
             <div className="flex items-center gap-2">
@@ -183,10 +183,7 @@ export function RoomsPage({ onEnterRoom }) {
                   <option value="public">Públicas</option>
                   <option value="private">Privadas</option>
                 </select>
-                
               </div>
-
-             
 
               <button
                 type="button"
@@ -200,9 +197,9 @@ export function RoomsPage({ onEnterRoom }) {
                 Crear sala
               </button>
 
-               <button
+              <button
                 onClick={loadRooms}
-                className="p-2  rounded-full hover:bg-slate-800 flex items-center justify-center"
+                className="p-2 rounded-full hover:bg-slate-800 flex items-center justify-center"
                 aria-label="Recargar salas"
                 title="Recargar salas"
               >
@@ -210,7 +207,6 @@ export function RoomsPage({ onEnterRoom }) {
               </button>
             </div>
           </div>
-          
 
           {/* Contenido de salas */}
           {loadingRooms ? (
@@ -241,45 +237,68 @@ export function RoomsPage({ onEnterRoom }) {
                     {myRooms.map((room) => (
                       <li
                         key={room.id}
-                        className="flex items-center justify-between px-3 py-2 rounded-xl border border-slate-800 bg-slate-950/70 hover:bg-slate-900/80 transition"
+                        className="px-3 py-2 rounded-xl border border-slate-800 bg-slate-950/70 hover:bg-slate-900/80 transition"
                       >
-                        <div className="flex items-stretch gap-2 flex-1">
-                          <div className="w-1 rounded-full bg-indigo-400/80" />
-                          <div className="flex flex-col flex-1">
-                            <span className="text-sm font-semibold text-slate-100 flex items-center gap-1.5">
-                              {room.name}
-                            </span>
-
-                            <div className="flex flex-wrap items-center gap-2 mt-0.5">
-                              <span className="text-[11px] text-slate-300 flex items-center gap-1">
-                                {room.isPrivate ? (
-                                  <>
-                                    <Lock className="w-3 h-3 text-slate-300" />
-                                    Privada
-                                  </>
-                                ) : (
-                                  <>
-                                    <Globe2 className="w-3 h-3 text-slate-300" />
-                                    Pública
-                                  </>
-                                )}
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-stretch gap-2 flex-1">
+                            <div className="w-1 rounded-full bg-indigo-400/80" />
+                            <div className="flex flex-col flex-1">
+                              <span className="text-sm font-semibold text-slate-100 flex items-center gap-1.5">
+                                {room.name}
                               </span>
 
-                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/15 border border-indigo-500/40 text-indigo-200 flex items-center gap-1">
-                                Miembro
-                              </span>
+                              <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                                <span className="text-[11px] text-slate-300 flex items-center gap-1">
+                                  {room.isPrivate ? (
+                                    <>
+                                      <Lock className="w-3 h-3 text-slate-300" />
+                                      Privada
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Globe2 className="w-3 h-3 text-slate-300" />
+                                      Pública
+                                    </>
+                                  )}
+                                </span>
+
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/15 border border-indigo-500/40 text-indigo-200 flex items-center gap-1">
+                                  Miembro
+                                </span>
+                              </div>
                             </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              className="p-2 rounded-full hover:bg-slate-800 flex items-center justify-center"
+                              onClick={() => handleJoinAndEnter(room)}
+                              aria-label="Entrar al chat"
+                              title="Entrar al chat"
+                            >
+                              <MessageCircle className="w-4 h-4 text-slate-100" />
+                            </button>
+                            <button
+                              type="button"
+                              className="p-2 rounded-full hover:bg-slate-800 flex items-center justify-center"
+                              onClick={() =>
+                                setInviteRoomId(
+                                  inviteRoomId === room.id ? null : room.id
+                                )
+                              }
+                              aria-label="Invitar usuarios"
+                              title="Invitar usuarios"
+                            >
+                              <UserPlus className="w-4 h-4 text-sky-400" />
+                            </button>
                           </div>
                         </div>
 
-                        <button
-                          className="ml-2 p-2 rounded-full hover:bg-slate-800 flex items-center justify-center"
-                          onClick={() => handleJoinAndEnter(room)}
-                          aria-label="Entrar al chat"
-                          title="Entrar al chat"
-                        >
-                          <MessageCircle className="w-4 h-4 text-slate-100" />
-                        </button>
+                        {inviteRoomId === room.id && (
+                          <div className="mt-2 pt-2 border-t border-slate-800">
+                            <InviteUser roomId={room.id} />
+                          </div>
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -310,7 +329,7 @@ export function RoomsPage({ onEnterRoom }) {
                     {joinableRooms.map((room) => (
                       <li
                         key={room.id}
-                        className="flex items-center justify-between px-3 py-2 rounded-xl border border-slate-800 bg-grey-950/100 hover:bg-slate-900/80 transition"
+                        className="flex items-center justify-between px-3 py-2 rounded-xl border border-slate-800 bg-slate-950 hover:bg-slate-900/80 transition"
                       >
                         <div className="flex flex-col">
                           <span className="text-sm font-medium text-slate-100 flex items-center gap-1.5">
@@ -323,9 +342,7 @@ export function RoomsPage({ onEnterRoom }) {
                           </span>
                           <div className="flex items-center gap-2 mt-0.5">
                             <span className="text-[11px] text-slate-400">
-                              {room.isPrivate
-                                ? 'Privada '
-                                : 'Pública'}
+                              {room.isPrivate ? 'Privada' : 'Pública'}
                             </span>
 
                             <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/40 text-sky-200 flex items-center gap-1">
@@ -377,7 +394,6 @@ export function RoomsPage({ onEnterRoom }) {
                   <span className="text-sm font-semibold text-slate-100">
                     Crear Sala
                   </span>
-                  
                 </div>
               </div>
               <button
@@ -385,7 +401,7 @@ export function RoomsPage({ onEnterRoom }) {
                 onClick={() => setShowCreate(false)}
                 className="text-[11px] text-slate-400 hover:text-slate-200"
               >
-                ✕ 
+                ✕
               </button>
             </div>
 
@@ -457,5 +473,47 @@ export function RoomsPage({ onEnterRoom }) {
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Componente para invitar usuarios a una sala concreta
+ */
+function InviteUser({ roomId }) {
+  const [username, setUsername] = useState('');
+  const [status, setStatus] = useState('');
+
+  async function handleInvite(e) {
+    e.preventDefault();
+    setStatus('');
+    try {
+      await inviteToRoomApi(roomId, username);
+      setStatus(`Invitación enviada a @${username}`);
+      setUsername('');
+    } catch (err) {
+      console.error(err);
+      setStatus('No se pudo invitar al usuario');
+    }
+  }
+
+  return (
+    <form onSubmit={handleInvite} className="flex gap-2 text-xs items-center">
+      <input
+        type="text"
+        placeholder="Username a invitar"
+        value={username}
+        onChange={(e) => setUsername(e.target.value)}
+        className="flex-1 rounded-md border border-slate-700 bg-slate-900/80 px-2 py-1 text-slate-50 outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500"
+      />
+      <button
+        type="submit"
+        className="px-3 py-1 rounded-md bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold"
+      >
+        Invitar
+      </button>
+      {status && (
+        <p className="text-[11px] text-slate-300 ml-2 truncate">{status}</p>
+      )}
+    </form>
   );
 }
