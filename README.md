@@ -1,242 +1,105 @@
-flowchart LR
-  %% ===== Subsystems =====
-  subgraph B[Backlog de features]
-    BL[Backlog]
-    MB[Meta_backlog]
-    FE[Factor_eficiencia]
-    RN[Ritmo_neto]
-    TL[Tasa_llegada]
-    TEF[Tiempo_efectivo]
-    SLA[SLA_ratio]
-    CAL[Calidad]
-  end
+# Aplicación de Chat en Tiempo Real con WebSockets y RabbitMQ
 
-  subgraph C[Clientes]
-    POT[Clientes potenciales]
-    CLI[Clientes (adoptantes)]
-    TA[Tasa_adopción]
-    TR[Tasa_cancelación (churn)]
-    WOM[Adopción por recomendación]
-  end
+## 1. Introducción y objetivo
 
-  subgraph F[Finanzas]
-    MRR[Ingresos mensuales]
-    CASH[Saldo en caja]
-    CO[Costo operacional]
-    SM[Sueldos mensuales]
-    GF[Gastos fijos]
-    BR[Burn_mensual]
-    RW[Runway]
-    PM[Precio mensual]
-    CPC[Costo por cliente]
-  end
+Este documento describe el diseño, la arquitectura y las decisiones técnicas de una aplicación de chat en tiempo real desarrollada como proyecto del curso **Patrones Arquitectónicos Avanzados**.
 
-  subgraph E[Empleados & Bienestar]
-    EMP[Empleados]
-    CAP[Capacidad_equipo]
-    BW[Bienestar del equipo]
-    HI[Contrataciones]
-    OUT[Salidas de empleados]
-    UTI[Utilización]
-  end
+El objetivo del sistema es ofrecer un chat tipo “salas” que permita a los usuarios:
+- Autenticarse con usuario y contraseña (JWT).
+- Crear y gestionar salas públicas y privadas (con password).
+- Enviar y recibir mensajes en tiempo real mediante WebSockets.
+- Consultar el historial de mensajes persistido en una base de datos relacional.
+- Mantener ciertas garantías de durabilidad y observabilidad usando un **broker de mensajes (RabbitMQ)** y métricas básicas.
 
-  subgraph P[Objetivo & Presión]
-    MRRobj[Meta de ingresos (MRR objetivo)]
-    PINV[Presión de inversores]
-  end
+La solución se implementa con un stack **Node.js + Express + Socket.IO + PostgreSQL + RabbitMQ**, con un cliente web en **React**.
 
-  %% ===== Inside Backlog =====
-  CAP -->|+| RN
-  FE -->|+| RN
-  RN -->|−| BL
-  TL -->|+| BL
-  BL -->|+ (exceso)| TEF
-  TEF -->|+| SLA
-  SLA -->|−| CAL
-  MB -->|referencia| BL
+---
 
-  %% ===== Clientes =====
-  TA -->|+| CLI
-  TR -->|+| POT
-  CLI -->|+| MRR
-  CAL -->|+| WOM
-  WOM -->|+| TA
-  CLI -->|−| POT
-  CLI -->|+| TR:::weak
-  classDef weak fill:#fff,stroke:#bbb,color:#555,stroke-dasharray:3 3;
+## 2. Requisitos
 
-  %% ===== Finanzas =====
-  CLI -->|+| MRR
-  PM -->|+| MRR
-  MRR -->|−| BR
-  GF -->|+| BR
-  SM -->|+| BR
-  CO -->|+| BR
-  BR -->|−| RW
-  MRR -->|+| CASH
-  BR -->|−| CASH
-  CLI -->|+| CO
-  CPC -->|+| CO
+### 2.1. Requisitos funcionales
 
-  %% ===== Empleados & Bienestar =====
-  EMP -->|+| CAP
-  BW -->|+| FE
-  EMP -->|+| SM
-  HI -->|+| EMP
-  OUT -->|−| EMP
+1. Usuarios pueden conectarse mediante autenticación simple JWT (username + password).
+2. Crear, listar, entrar y salir de salas de chat (rooms).
+3. Enviar y recibir mensajes en tiempo real a través de WebSockets.
+4. Persistir todos los mensajes en una base de datos relacional (PostgreSQL).
+5. Consultar el historial de mensajes por sala con paginación (offset + limit).
+6. Notificar cuando un usuario entra o sale de una sala.
+7. Control de acceso a salas:
+   - Salas públicas.
+   - Salas privadas protegidas por password.
+8. Funcionalidades adicionales:
+   - Estado online/offline.
+   - Indicador de “está escribiendo…” (typing).
+   - Base para “read receipts” (evento `message_read`).
 
-  %% ===== Couplings between subsystems =====
-  %% Backlog -> Clientes (calidad & churn)
-  CAL -->|−| TR
-  CAL -->|+| WOM
+### 2.2. Requisitos no funcionales
 
-  %% Empleados/Bienestar -> Backlog (eficiencia)
-  UTI -->|−| BW
-  UTI -->|−| FE
-  CAP -->|− (cubre)| UTI
-  TL -->|+ (demanda)| UTI
-  CLI -->|+ (soporte)| UTI
+- **Concurrencia**: soportar decenas de usuarios simultáneos en la PoC.
+- **Latencia**: entrega de mensajes por WebSocket con latencias observadas por debajo de **850 ms** en pruebas de carga.
+- **Durabilidad**: todos los mensajes confirmados se almacenan en PostgreSQL mediante un worker conectado a RabbitMQ.
+- **Observabilidad**:
+  - Endpoint `/health` para verificar estado del servicio y conexión a la BD.
+  - Endpoint `/metrics` con métricas simples: peticiones HTTP, latencia promedio, conexiones WS activas, mensajes WS recibidos/enviados.
+- **Despliegue**: orquestación con **docker-compose**, incluyendo servicios de:
+  - `backend` (API + WS + RabbitMQ client),
+  - `worker` (persistencia asíncrona),
+  - `db` (Postgres),
+  - `rabbitmq` (broker).
+- **Seguridad básica**:
+  - JWT para todas las operaciones protegidas.
+  - Control de acceso a salas según membresía y/o password.
 
-  %% Finanzas -> Empleados (contrataciones según caja/presión)
-  CASH -->|+ (factor caja)| HI
-  PINV -->|+ (horas extra)| UTI
-  PINV -->|+ (apetito de hiring)| HI
-flowchart LR
-  %% ===== Subsystems =====
-  subgraph B[Backlog de features]
-    BL[Backlog]
-    MB[Meta_backlog]
-    FE[Factor_eficiencia]
-    RN[Ritmo_neto]
-    TL[Tasa_llegada]
-    TEF[Tiempo_efectivo]
-    SLA[SLA_ratio]
-    CAL[Calidad]
-  end
+---
 
-  subgraph C[Clientes]
-    POT[Clientes potenciales]
-    CLI[Clientes (adoptantes)]
-    TA[Tasa_adopción]
-    TR[Tasa_cancelación (churn)]
-    WOM[Adopción por recomendación]
-  end
+## 3. Arquitectura
 
-  subgraph F[Finanzas]
-    MRR[Ingresos mensuales]
-    CASH[Saldo en caja]
-    CO[Costo operacional]
-    SM[Sueldos mensuales]
-    GF[Gastos fijos]
-    BR[Burn_mensual]
-    RW[Runway]
-    PM[Precio mensual]
-    CPC[Costo por cliente]
-  end
+### 3.1. Visión general
 
-  subgraph E[Empleados & Bienestar]
-    EMP[Empleados]
-    CAP[Capacidad_equipo]
-    BW[Bienestar del equipo]
-    HI[Contrataciones]
-    OUT[Salidas de empleados]
-    UTI[Utilización]
-  end
+A nivel lógico, el sistema se compone de:
 
-  subgraph P[Objetivo & Presión]
-    MRRobj[Meta de ingresos (MRR objetivo)]
-    PINV[Presión de inversores]
-  end
+- **Cliente Web (React)**: SPA que gestiona login, listado de salas y vista de chat.
+- **API REST (Express)**:
+  - `/auth/login`
+  - `/rooms` (creación, listado, join/leave)
+  - `/rooms/:id/messages` (historial paginado)
+- **Servidor WebSocket (Socket.IO)**:
+  - Autentica conexiones usando el token JWT.
+  - Maneja eventos `join_room`, `leave_room`, `send_message`, `typing`, `message_read`.
+  - Publica los mensajes en RabbitMQ y hace broadcast inmediato a los clientes.
+- **Broker (RabbitMQ)**:
+  - Cola `chat_messages` donde se encolan los mensajes de chat para persistencia.
+- **Worker de mensajes (Node.js)**:
+  - Consume la cola `chat_messages`.
+  - Valida y persiste los mensajes en PostgreSQL usando la lógica de negocio.
+- **Base de datos (PostgreSQL)**:
+  - Tablas: `users`, `rooms`, `room_members`, `messages`.
+  - Uso de índices para paginación eficiente por sala.
 
-  %% ===== Inside Backlog =====
-  CAP -->|+| RN
-  FE -->|+| RN
-  RN -->|−| BL
-  TL -->|+| BL
-  BL -->|+ (exceso)| TEF
-  TEF -->|+| SLA
-  SLA -->|−| CAL
-  MB -->|referencia| BL
+### 3.2. Diagrama de componentes (texto)
 
-  %% ===== Clientes =====
-  TA -->|+| CLI
-  TR -->|+| POT
-  CLI -->|+| MRR
-  CAL -->|+| WOM
-  WOM -->|+| TA
-  CLI -->|−| POT
-  CLI -->|+| TR:::weak
-  classDef weak fill:#fff,stroke:#bbb,color:#555,stroke-dasharray:3 3;
-
-  %% ===== Finanzas =====
-  CLI -->|+| MRR
-  PM -->|+| MRR
-  MRR -->|−| BR
-  GF -->|+| BR
-  SM -->|+| BR
-  CO -->|+| BR
-  BR -->|−| RW
-  MRR -->|+| CASH
-  BR -->|−| CASH
-  CLI -->|+| CO
-  CPC -->|+| CO
-
-  %% ===== Empleados & Bienestar =====
-  EMP -->|+| CAP
-  BW -->|+| FE
-  EMP -->|+| SM
-  HI -->|+| EMP
-  OUT -->|−| EMP
-
-  %% ===== Couplings between subsystems =====
-  %% Backlog -> Clientes (calidad & churn)
-  CAL -->|−| TR
-  CAL -->|+| WOM
-
-  %% Empleados/Bienestar -> Backlog (eficiencia)
-  UTI -->|−| BW
-  UTI -->|−| FE
-  CAP -->|− (cubre)| UTI
-  TL -->|+ (demanda)| UTI
-  CLI -->|+ (soporte)| UTI
-
-  %% Finanzas -> Empleados (contrataciones según caja/presión)
-  CASH -->|+ (factor caja)| HI
-  PINV -->|+ (horas extra)| UTI
-  PINV -->|+ (apetito de hiring)| HI
-
-  %% Clientes -> Finanzas -> Presión
-  MRRobj --> PINV
-  MRR -->|− (gap)| PINV
-
-  %% Backlog -> Presión indirecta (por calidad->MRR)
-  BL -->|− via Calidad| MRR
-
-  %% Presión -> Bienestar y Salidas
-  PINV -->|+| OUT
-  PINV -->|−| BW
-
-  %% Runway -> Presión (opcional)
-  RW -->|− (colchón)| PINV
-
-  %% Aesthetics
-  classDef cluster fill:#f7f7f7,stroke:#ccc,stroke-width:1px;
-  class B,C,F,E,P cluster;
-
-  %% Clientes -> Finanzas -> Presión
-  MRRobj --> PINV
-  MRR -->|− (gap)| PINV
-
-  %% Backlog -> Presión indirecta (por calidad->MRR)
-  BL -->|− via Calidad| MRR
-
-  %% Presión -> Bienestar y Salidas
-  PINV -->|+| OUT
-  PINV -->|−| BW
-
-  %% Runway -> Presión (opcional)
-  RW -->|− (colchón)| PINV
-
-  %% Aesthetics
-  classDef cluster fill:#f7f7f7,stroke:#ccc,stroke-width:1px;
-  class B,C,F,E,P cluster;
+```text
+[ Cliente Web (React) ]
+        |  REST (Axios)
+        v
+[ API REST (Express) ] ----------------------------+
+        |                                         |
+        | PG                                      |
+        v                                         |
+[ PostgreSQL ]                                    |
+                                                  |
+[ Servidor WebSocket (Socket.IO) ]                |
+        ^                                         |
+        | (WS + JWT)                              |
+        |                                         |
+[ Cliente Web (React) – Socket.IO client ]        |
+        |                                         |
+        v        publish                          |
+[ RabbitMQ (cola: chat_messages) ]  <-------------+
+        |
+        | consume
+        v
+[ Worker de mensajes ]
+        |
+        v
+[ PostgreSQL (persistencia de messages) ]
