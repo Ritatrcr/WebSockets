@@ -3,11 +3,12 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
- "scripts": {
-  "dev": "nodemon src/server.js",
-  "start": "node src/server.js",
-  "test": "jest"
-},
+  "scripts": {
+    "dev": "nodemon src/server.js",
+    "start": "node src/server.js",
+    "test": "jest",
+    "migrate": "node src/scripts/initDb.js"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
