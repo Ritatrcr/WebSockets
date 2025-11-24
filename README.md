@@ -35,9 +35,9 @@ Antes de correr el proyecto, asegúrate de tener instalado:
 ### 3.1. Clonar el repositorio y cambiar a la rama `dev`
 
 ```bash
-git clone <URL-del-repo>
-cd <carpeta-del-repo>
-git checkout dev
+git clone https://github.com/Ritatrcr/WebSockets.git
+cd WebSockets
+
 ```
 
 ### 3.2. Levantar PostgreSQL y RabbitMQ
