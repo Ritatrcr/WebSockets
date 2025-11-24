@@ -240,3 +240,126 @@ A continuación se resumen los ADRs más relevantes del diseño:
 
 - Backends sin estado de sesión (*stateless*), más simple de escalar.
 - Hay que gestionar bien la expiración/renovación del token.
+## 7. Pruebas automatizadas y métricas
+
+### 7.1. Enfoque general de pruebas
+
+Con el fin de garantizar la calidad funcional y no funcional de la aplicación de chat en tiempo real, se implementó una estrategia de pruebas automatizadas en tres niveles:
+
+1. **Pruebas unitarias** sobre servicios de negocio (capa core del backend).
+2. **Pruebas de integración** sobre los endpoints REST principales.
+3. **Pruebas de carga y rendimiento** utilizando JMeter, apoyadas en el endpoint de métricas `/metrics`.
+
+Este enfoque permite validar tanto la lógica interna (autenticación, salas, mensajes) como el comportamiento extremo a extremo de la API bajo múltiples usuarios concurrentes.
+
+---
+
+### 7.2. Pruebas unitarias (Jest – servicios de dominio)
+
+Se implementaron pruebas unitarias con **Jest** sobre la lógica de negocio de los siguientes servicios:
+
+- **`auth.service`**  
+  Función `loginUser(username, password)`:
+  - Usuario inexistente → lanza error `INVALID_CREDENTIALS`.
+  - Credenciales válidas (`demoo` / `123456`) → retorna un JWT y el objeto de usuario.
+  - Contraseña incorrecta → lanza error `INVALID_CREDENTIALS`.
+
+- **`room.service`**  
+  - Creación de salas:
+    - Valida que el nombre no sea vacío (`NAME_REQUIRED`).
+    - Permite crear salas públicas sin password.
+    - Permite crear salas privadas con password y exige password para unirse.
+  - Membresías:
+    - `joinRoom` exige password en salas privadas y valida contraseña.
+    - `listRoomsForUser` devuelve las salas visibles para un usuario.
+
+- **`message.service`**  
+  - `getRoomMessagesWithPagination`:
+    - Devuelve mensajes paginados para un usuario miembro de la sala.
+    - Lanza `NOT_MEMBER` si un usuario intenta consultar mensajes de una sala a la que no pertenece.
+  - `sendMessageInRoom`:
+    - Inserta mensajes en la tabla `messages` asociados a `room_id` y `user_id`.
+
+<img width="285" height="69" alt="image" src="https://github.com/user-attachments/assets/b0c5b51f-e61d-49a3-9169-ed2b7bf591a1" />
+
+
+### 7.3. Pruebas de integración sobre la API REST (supertest)
+
+Adicionalmente se definieron pruebas de integración usando **supertest** sobre la aplicación Express (`app`), sin levantar el servidor completo, pero utilizando la base de datos real de desarrollo.
+
+**Endpoints cubiertos:**
+
+- **`POST /auth/login`**
+  - Con credenciales inválidas → **401 Unauthorized**.
+  - Con `demoo / 123456` → **200 OK**, token JWT y usuario asociado.
+
+- **`GET /rooms`**
+  - Sin token → **401 Unauthorized** (middleware `requireAuth`).
+  - Con token válido → **200 OK** y un arreglo de salas visibles para el usuario.
+
+- **`POST /rooms`**
+  - Con token válido permite crear una sala pública y devuelve **201 Created**, con el `id` de la sala y la bandera `isPrivate`.
+
+- **`GET /rooms/:roomId/messages`**
+  - Sin token → **401 Unauthorized**.
+  - Con token válido y usuario miembro de la sala → **200 OK** y estructura:
+
+    ```json
+    {
+      "items": [ ... ],
+      "pagination": {
+        "limit": 10,
+        "offset": 0,
+        "total": n
+      }
+    }
+    ```
+
+
+<img width="658" height="725" alt="image" src="https://github.com/user-attachments/assets/eac7822a-bfd2-4204-9a04-84a224dea5a7" />
+
+
+### 7.4. Pruebas de carga y rendimiento (JMeter + `/metrics`)
+
+Para evaluar el comportamiento del sistema bajo concurrencia, se diseñó un plan de pruebas en **Apache JMeter** que simula varios usuarios concurrentes ejecutando el flujo básico de la aplicación:
+
+1. `POST /auth/login` – autenticación con el usuario `demoo / 123456`.
+2. `GET /rooms` – obtención de las salas visibles.
+3. `POST /rooms/1/join` – unión a una sala existente (por ejemplo, `general`).
+4. `GET /rooms/1/messages?limit=20&offset=0` – consulta de historial con paginación.
+
+Los hilos de JMeter utilizan el token JWT obtenido en el paso de login para autenticarse en los siguientes requests. Durante la ejecución se recopilaron:
+
+- Latencias por petición (mínima, media, máxima).
+- Throughput (peticiones/segundo).
+- Porcentaje de errores.
+
+Además, se añadió un endpoint de observabilidad simple en el backend: **`GET /metrics`**, que expone en formato JSON:
+
+- `httpRequestsTotal`
+- `httpRequestsByRoute` (ej. `"GET /rooms": 120`)
+- `httpAvgLatencyMs`
+- `wsConnections`
+- `wsMessagesReceived`
+- `wsMessagesSent`
+
+Esto permitió contrastar los resultados de JMeter con las métricas internas del backend durante la carga.
+
+
+<img width="394" height="238" alt="image" src="https://github.com/user-attachments/assets/5619c6c9-fc41-4155-83ce-fac66655cf69" />
+<img width="468" height="135" alt="image" src="https://github.com/user-attachments/assets/e7cdc8dd-1068-4f23-a6f7-55057e3b9157" />
+
+#### Análisis de latencia vs. requisito (< 850 ms)
+
+El requisito no funcional del sistema establece que la **entrega de mensajes** y las operaciones principales deben tener una latencia **inferior a 850 ms**.
+
+En la prueba de carga ejecutada con Apache JMeter, se midió el tiempo de respuesta promedio (**Average (ms)** / **Avg**) para los endpoints evaluados. Los resultados obtenidos fueron del orden de:
+
+- `POST /auth/login` → ~90 ms de latencia promedio.
+- Endpoints de lectura (`GET /rooms`, `POST /rooms/1/join`, `GET /rooms/1/messages`) → entre ~2 y 4 ms de latencia promedio.
+
+Es decir, incluso en el caso “más lento” (login con ~90 ms), la latencia se mantiene **muy por debajo del umbral de 850 ms**, con un margen de seguridad amplio (≈10 veces más rápido que el límite).  
+
+Los endpoints relacionados directamente con la experiencia de chat y consulta de historial (`GET /rooms` y `GET /rooms/1/messages`) presentan latencias promedio prácticamente instantáneas (2–4 ms en el entorno de pruebas), lo que indica que el sistema cumple holgadamente con el requisito de rendimiento definido para la entrega de mensajes.
+
+En resumen, bajo el escenario de carga configurado, **todas las operaciones críticas cumplen el requisito de “latencia < 850 ms”**, por lo que el comportamiento del backend es adecuado para la prueba de concepto planteada en este proyecto.
