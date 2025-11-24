@@ -2,7 +2,7 @@
 
 ## Integrantes
 Rita Trindade Da Cruz
-Brandom Merchan
+BrandoN Merchan Sandoval
 
 Aplicación de chat en tiempo real con salas públicas/privadas, autenticación con JWT, backend en Node.js (Express + Socket.IO), frontend en React y persistencia asíncrona de mensajes usando RabbitMQ + PostgreSQL.  
 Todo está orquestado con **Docker Compose**.
