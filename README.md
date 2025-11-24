@@ -1,8 +1,7 @@
 # Chat en tiempo real – Node.js, React, Socket.IO
 
 ## Integrantes
-Rita Trindade Da Cruz
-BrandoN Merchan Sandoval
+Rita Trindade Da Cruz y Brandon Merchan Sandoval.
 
 Aplicación de chat en tiempo real con salas públicas/privadas, autenticación con JWT, backend en Node.js (Express + Socket.IO), frontend en React y persistencia asíncrona de mensajes usando RabbitMQ + PostgreSQL.  
 Todo está orquestado con **Docker Compose**.
@@ -18,8 +17,6 @@ Todo está orquestado con **Docker Compose**.
 - **Autenticación:** JWT.
 - **Infraestructura local:** Docker + Docker Compose.
 - **Pruebas de carga:** Apache JMeter.
-
-> El código de la app está en la rama `dev` del repositorio.
 
 ---
 
