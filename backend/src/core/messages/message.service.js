@@ -7,6 +7,7 @@ import {
 import {
   findRoomById,
   isUserMemberOfRoom,
+  updateRoomLastReadAt,   // 👈 añade esto
 } from '../rooms/room.repository.js';
 
 function createError(code, message) {
@@ -15,7 +16,7 @@ function createError(code, message) {
   return err;
 }
 
-// Envía un mensaje a una sala: valida sala, membresía y guarda en DB
+// Envía un mensaje a una sala
 export async function sendMessageInRoom({ roomId, userId, content }) {
   if (!roomId || Number.isNaN(Number(roomId))) {
     throw createError('INVALID_ROOM', 'roomId inválido');
@@ -66,13 +67,12 @@ export async function getRoomMessagesWithPagination({
     throw createError('ROOM_NOT_FOUND', 'Sala no encontrada');
   }
 
-  // El usuario debe ser miembro para ver el historial (incluso si es pública)
   const membership = await isUserMemberOfRoom(roomId, userId);
   if (!membership) {
     throw createError('NOT_MEMBER', 'No eres miembro de esta sala');
   }
 
-  const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100); // 1..100
+  const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
   const safeOffset = Math.max(Number(offset) || 0, 0);
 
   const [items, total] = await Promise.all([
@@ -81,6 +81,9 @@ export async function getRoomMessagesWithPagination({
   ]);
 
   const hasMore = safeOffset + safeLimit < total;
+
+  // 👇 marcar todo lo que acabas de ver como leído
+  await updateRoomLastReadAt(roomId, userId, new Date());
 
   return {
     items: items.map((m) => ({

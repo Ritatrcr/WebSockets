@@ -1,3 +1,4 @@
+// src/scripts/migrate.js (o como lo tengas)
 import { pool } from '../config/db.js';
 
 const migrationSQL = `
@@ -28,6 +29,10 @@ CREATE TABLE IF NOT EXISTS room_members (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   CONSTRAINT uq_room_user UNIQUE (room_id, user_id)
 );
+
+-- 🔹 Asegurarnos de que room_members tenga columna last_read_at
+ALTER TABLE room_members
+ADD COLUMN IF NOT EXISTS last_read_at TIMESTAMPTZ DEFAULT NOW();
 
 -- MESSAGES
 CREATE TABLE IF NOT EXISTS messages (

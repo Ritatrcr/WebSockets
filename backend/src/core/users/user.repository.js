@@ -12,3 +12,6 @@ export async function findUserByUsername(username) {
   const result = await pool.query(query, values);
   return result.rows[0] || null;
 }
+
+
+

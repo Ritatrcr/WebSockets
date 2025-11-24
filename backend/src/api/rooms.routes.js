@@ -5,6 +5,7 @@ import {
   listRoomsForUser,
   joinRoom,
   leaveRoom,
+  inviteUserToRoom, // ✅ importante
 } from '../core/rooms/room.service.js';
 
 export const roomsRouter = Router();
@@ -95,6 +96,42 @@ roomsRouter.post('/:roomId/leave', async (req, res) => {
       return res.status(404).json({ message: err.message });
     }
     if (err.code === 'OWNER_CANNOT_LEAVE') {
+      return res.status(400).json({ message: err.message });
+    }
+
+    return res.status(500).json({ message: 'Error interno del servidor' });
+  }
+});
+
+// POST /rooms/:roomId/invite - invitar a sala por username
+roomsRouter.post('/:roomId/invite', async (req, res) => {
+  const roomId = Number(req.params.roomId);
+  const { username } = req.body || {};
+  const requesterId = req.user.id; // el que invita
+
+  if (Number.isNaN(roomId)) {
+    return res.status(400).json({ message: 'roomId inválido' });
+  }
+
+  try {
+    const result = await inviteUserToRoom({ roomId, requesterId, username });
+    return res.json(result);
+  } catch (err) {
+    console.error('Error en POST /rooms/:roomId/invite:', err);
+
+    if (err.code === 'ROOM_NOT_FOUND') {
+      return res.status(404).json({ message: err.message });
+    }
+    if (err.code === 'NOT_OWNER') {
+      return res.status(403).json({ message: err.message });
+    }
+    if (err.code === 'USER_NOT_FOUND') {
+      return res.status(404).json({ message: err.message });
+    }
+    if (err.code === 'ALREADY_MEMBER') {
+      return res.status(400).json({ message: err.message });
+    }
+    if (err.code === 'USERNAME_REQUIRED') {
       return res.status(400).json({ message: err.message });
     }
 

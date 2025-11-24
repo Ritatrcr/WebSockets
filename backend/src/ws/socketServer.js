@@ -6,12 +6,15 @@ import {
   isUserMemberOfRoom,
   findRoomById,
 } from '../core/rooms/room.repository.js';
-import { publishChatMessage } from '../config/rabbitmq.js';
+import { publishChatMessage } from '../config/rabbitmq.js'; // opcional, lo puedes quitar si no lo usas
 import {
   recordWsConnectionChange,
   recordWsMessageReceived,
   recordWsMessageSent,
 } from '../core/metrics/metrics.js';
+
+// 👇 NUEVO: service que guarda el mensaje en la DB
+import { sendMessageInRoom } from '../core/messages/message.service.js';
 
 // Mapa sencillo para online/offline: userId -> nº de sockets activos
 const onlineUsers = new Map();
@@ -35,7 +38,7 @@ export function createSocketServer(httpServer) {
 
       const payload = jwt.verify(token, config.jwtSecret);
       socket.data.userId = payload.userId;
-      socket.data.username = payload.username; 
+      socket.data.username = payload.username; // guardamos username
       return next();
     } catch (err) {
       console.error('Error auth Socket.IO:', err.message);
@@ -45,6 +48,7 @@ export function createSocketServer(httpServer) {
 
   io.on('connection', (socket) => {
     const userId = socket.data.userId;
+    const username = socket.data.username;
     console.log(`🔌 Usuario conectado: userId=${userId}, socket=${socket.id}`);
 
     // Métrica: +1 conexión WS
@@ -91,10 +95,11 @@ export function createSocketServer(httpServer) {
         socket.join(roomName(roomId));
         console.log(`✅ userId=${userId} joined room=${roomId}`);
 
-        // Notificar a todos en la sala (incluido el que entra)
-        io.to(roomName(roomId)).emit('user_joined', {
+        // Notificar a los OTROS en la sala (no hace falta al que entra)
+        socket.to(roomName(roomId)).emit('user_joined', {
           roomId,
           userId,
+          username,
         });
       } catch (err) {
         console.error('Error en join_room:', err);
@@ -119,9 +124,11 @@ export function createSocketServer(httpServer) {
         socket.leave(roomName(roomId));
         console.log(`🚪 userId=${userId} left room=${roomId}`);
 
-        io.to(roomName(roomId)).emit('user_left', {
+        // Notificar a los OTROS en la sala
+        socket.to(roomName(roomId)).emit('user_left', {
           roomId,
           userId,
+          username,
         });
       } catch (err) {
         console.error('Error en leave_room:', err);
@@ -135,7 +142,6 @@ export function createSocketServer(httpServer) {
     // --- Evento: send_message ---
     socket.on('send_message', async (payload) => {
       try {
-        // Métrica: mensaje entrante al servidor
         recordWsMessageReceived();
 
         const roomId = Number(payload?.roomId);
@@ -155,48 +161,65 @@ export function createSocketServer(httpServer) {
           });
         }
 
-        const room = await findRoomById(roomId);
-        if (!room) {
+        // Usamos el service que:
+        // - Valida roomId
+        // - Valida que el usuario sea miembro
+        // - Guarda en la tabla messages
+        const saved = await sendMessageInRoom({
+          roomId,
+          userId,
+          content: rawContent,
+        });
+        // saved: { id, roomId, userId, content, createdAt }
+
+        // (Opcional) RabbitMQ para analytics / otras cosas
+        // publishChatMessage({
+        //   roomId: saved.roomId,
+        //   userId: saved.userId,
+        //   content: saved.content,
+        //   createdAt: saved.createdAt,
+        // });
+
+        recordWsMessageSent();
+
+        // Broadcast a todos en la sala con datos reales de DB
+        io.to(roomName(saved.roomId)).emit('message', {
+          id: saved.id,
+          roomId: saved.roomId,
+          userId: saved.userId,
+          username,
+          content: saved.content,
+          createdAt: saved.createdAt,
+          type: 'message',
+        });
+      } catch (err) {
+        console.error('Error en send_message:', err);
+
+        if (err.code === 'ROOM_NOT_FOUND') {
           return socket.emit('ws_error', {
             type: 'send_message',
             message: 'Sala no encontrada',
           });
         }
-
-        const membership = await isUserMemberOfRoom(roomId, userId);
-        if (!membership) {
+        if (err.code === 'NOT_MEMBER') {
           return socket.emit('ws_error', {
             type: 'send_message',
             message: 'No eres miembro de esta sala',
           });
         }
+        if (err.code === 'CONTENT_REQUIRED') {
+          return socket.emit('ws_error', {
+            type: 'send_message',
+            message: 'El mensaje no puede estar vacío',
+          });
+        }
+        if (err.code === 'INVALID_ROOM') {
+          return socket.emit('ws_error', {
+            type: 'send_message',
+            message: 'roomId inválido',
+          });
+        }
 
-        const content = rawContent.trim();
-        const createdAt = new Date().toISOString();
-
-        // 1) Publicar en RabbitMQ para que el worker lo persista en DB
-        publishChatMessage({
-          roomId,
-          userId,
-          content,
-          createdAt,
-        });
-
-        // 2) Broadcast inmediato a la sala (sin esperar a que DB confirme)
-        recordWsMessageSent(); // métrica: mensaje enviado a clientes
-
-        io.to(roomName(roomId)).emit('message', {
-        id: null,
-        roomId,
-        userId,
-        username: socket.data.username,
-        content,
-        createdAt,
-        type: 'message',
-        });
-
-      } catch (err) {
-        console.error('Error en send_message:', err);
         socket.emit('ws_error', {
           type: 'send_message',
           message: 'Error interno del servidor',
@@ -233,7 +256,21 @@ export function createSocketServer(httpServer) {
 
     // --- Evento: disconnect ---
     socket.on('disconnect', () => {
-      console.log(`❌ Usuario desconectado: userId=${userId}, socket=${socket.id}`);
+      console.log(
+        `❌ Usuario desconectado: userId=${userId}, socket=${socket.id}`
+      );
+
+      // Avisar a todas las salas donde estaba que se fue
+      // socket.rooms incluye también el propio socket.id, lo filtramos
+      for (const room of socket.rooms) {
+        if (room === socket.id) continue; // no es una sala de chat real
+
+        io.to(room).emit('user_left', {
+          roomId: Number(room.replace('room:', '')),
+          userId,
+          username,
+        });
+      }
 
       // Métrica: -1 conexión WS
       recordWsConnectionChange(-1);

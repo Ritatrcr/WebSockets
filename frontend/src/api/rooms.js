@@ -1,6 +1,12 @@
 // src/api/rooms.js
 import { api } from './client';
 
+export async function inviteToRoomApi(roomId, username) {
+  const res = await api.post(`/rooms/${roomId}/invite`, { username });
+  return res.data;
+}
+
+
 // GET /rooms
 export async function fetchRooms() {
   const res = await api.get('/rooms');
@@ -23,3 +29,10 @@ export async function joinRoomApi(roomId, password) {
   const res = await api.post(`/rooms/${roomId}/join`, body);
   return res.data;
 }
+
+export async function fetchUsersApi() {
+  const res = await api.get('/users');
+  return res.data;
+}
+
+
