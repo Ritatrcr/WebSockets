@@ -348,6 +348,7 @@ Esto permitió contrastar los resultados de JMeter con las métricas internas de
 
 <img width="394" height="238" alt="image" src="https://github.com/user-attachments/assets/5619c6c9-fc41-4155-83ce-fac66655cf69" />
 <img width="468" height="135" alt="image" src="https://github.com/user-attachments/assets/e7cdc8dd-1068-4f23-a6f7-55057e3b9157" />
+<img width="861" height="701" alt="image" src="https://github.com/user-attachments/assets/6d718221-8a79-49ea-a7eb-ef0911eaf968" />
 
 #### Análisis de latencia vs. requisito (< 850 ms)
 
